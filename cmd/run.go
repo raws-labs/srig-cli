@@ -158,7 +158,7 @@ func runOnSession(parent context.Context, c *client.Client, sess *client.Session
 		parent = context.Background()
 	}
 
-	// Phase 1: flash (generous fixed timeout, independent of --timeout).
+	// First: flash (generous fixed timeout, independent of --timeout).
 	flashCtx, cancelFlash := context.WithTimeout(parent, 2*time.Minute)
 	defer cancelFlash()
 	ws, err := c.DialSerialWS(flashCtx, sess.ID)
@@ -191,7 +191,7 @@ func runOnSession(parent context.Context, c *client.Client, sess *client.Session
 		wcancel()
 	}
 
-	// Phase 2: watch serial for --timeout. The parent context cancels on SIGINT
+	// Then: watch serial for --timeout. The parent context cancels on SIGINT
 	// (wired via signal.NotifyContext in main), so a cancelled parent = interrupt.
 	watchCtx, cancelWatch := context.WithTimeout(parent, timeout)
 	defer cancelWatch()
