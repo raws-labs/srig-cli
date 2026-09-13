@@ -24,6 +24,19 @@ export SRIG_API_KEY=key_...
 
 Or pass `--api-key` to any command.
 
+## First run
+
+No toolchain, and no board on your desk:
+
+```bash
+curl -LO https://github.com/raws-labs/srig-examples/releases/latest/download/demo-shell-esp32-s3.bin
+srig run demo-shell-esp32-s3.bin --board esp32-s3 --expect "0 failed"
+```
+
+`srig run` reserves a board, flashes it, watches the serial output for the
+pattern, ends the session, and exits 0 on a match. That exit code is the whole
+CI integration.
+
 ## Commands
 
 ```
