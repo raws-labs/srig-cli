@@ -104,6 +104,22 @@ func (c *Client) ListBoards() ([]Board, error) {
 	return boards, nil
 }
 
+// Config is the subset of platform settings a client needs to behave
+// correctly, from GET /v1/config.
+type Config struct {
+	IdleTimeoutSeconds int `json:"idle_timeout_seconds"`
+}
+
+// GetConfig returns the platform settings. Callers treat a failure as unknown
+// rather than fatal: it only shapes what the CLI prints.
+func (c *Client) GetConfig() (*Config, error) {
+	var cfg Config
+	if err := c.do("GET", "/v1/config", nil, &cfg); err != nil {
+		return nil, err
+	}
+	return &cfg, nil
+}
+
 // CreateSession starts a new session for the given board type.
 func (c *Client) CreateSession(boardType string) (*Session, error) {
 	body := map[string]string{"board_type": boardType}

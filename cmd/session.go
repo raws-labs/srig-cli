@@ -45,11 +45,19 @@ func NewSessionCmd(c **client.Client, jsonFlag *bool, baseURL *string) *cobra.Co
 				return nil
 			}
 
-			output.Card("session created", [][2]string{
+			rows := [][2]string{
 				{"id", sess.ID},
 				{"board", sess.BoardType},
 				{"state", sess.State},
-			})
+			}
+			// A session with nothing attached to its serial console ends on its
+			// own, which is what catches people running these commands one at a
+			// time for the first time.
+			if cfg, err := (*c).GetConfig(); err == nil && cfg.IdleTimeoutSeconds > 0 {
+				rows = append(rows, [2]string{"ends after", fmt.Sprintf("%ds idle", cfg.IdleTimeoutSeconds)})
+			}
+			output.Card("session created", rows)
+			output.Info("flash or open the serial console to keep it alive, or use `srig run` to do both in one command")
 			return nil
 		},
 	}
