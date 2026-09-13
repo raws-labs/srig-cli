@@ -8,6 +8,7 @@ import (
 	"io"
 	"os"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/coder/websocket"
@@ -17,6 +18,10 @@ import (
 	"github.com/raws-labs/srig-cli/runner"
 	"github.com/spf13/cobra"
 )
+
+// How long to wait for the board to say something before sending anyway. A
+// board that boots silently still has to be drivable.
+const sendGrace = 3 * time.Second
 
 // ExitError carries a specific process exit code up to main(). The command has
 // already printed all human/JSON output; main only maps the code.
@@ -182,19 +187,34 @@ func runOnSession(parent context.Context, c *client.Client, sess *client.Session
 		return runner.Outcome{}, err
 	}
 
-	// Optionally drive the board: write to its UART once watching begins.
-	if send != "" {
-		b64 := base64.StdEncoding.EncodeToString([]byte(send))
-		m, _ := json.Marshal(map[string]string{"type": "serial_data", "data": b64})
-		wctx, wcancel := context.WithTimeout(parent, 5*time.Second)
-		_ = ws.Write(wctx, websocket.MessageText, m)
-		wcancel()
-	}
-
 	// Then: watch serial for --timeout. The parent context cancels on SIGINT
 	// (wired via signal.NotifyContext in main), so a cancelled parent = interrupt.
 	watchCtx, cancelWatch := context.WithTimeout(parent, timeout)
 	defer cancelWatch()
+
+	// Drive the board, once it can hear us. Flashing resets the chip, so it is
+	// not listening when flash_done arrives and anything written then is lost.
+	// Wait for its first output instead, with a short grace period for firmware
+	// that boots silently.
+	firstOutput := make(chan struct{})
+	var firstOnce sync.Once
+	if send != "" {
+		go func() {
+			select {
+			case <-firstOutput:
+			case <-time.After(sendGrace):
+			case <-watchCtx.Done():
+				return
+			}
+			b64 := base64.StdEncoding.EncodeToString([]byte(send))
+			m, _ := json.Marshal(map[string]string{"type": "serial_data", "data": b64})
+			wctx, wcancel := context.WithTimeout(watchCtx, 5*time.Second)
+			defer wcancel()
+			if err := ws.Write(wctx, websocket.MessageText, m); err != nil && watchCtx.Err() == nil {
+				output.Error(fmt.Sprintf("could not write to the board: %v", err))
+			}
+		}()
+	}
 
 	var buf strings.Builder
 	for {
@@ -220,6 +240,7 @@ func runOnSession(parent context.Context, c *client.Client, sess *client.Session
 		if derr != nil {
 			continue
 		}
+		firstOnce.Do(func() { close(firstOutput) })
 		if jsonFlag {
 			os.Stderr.Write(decoded) // keep stdout pure JSON under --json
 		} else {
