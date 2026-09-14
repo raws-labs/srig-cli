@@ -25,14 +25,15 @@ var (
 		color  lipgloss.Color
 		symbol string
 	}{
-		"available":  {Green, "●"},
-		"allocated":  {yellow, "●"},
-		"offline":    {red, "●"},
-		"active":     {Green, "●"},
-		"idle":       {yellow, "●"},
-		"pending":    {Dim, "○"},
-		"allocating": {Dim, "○"},
-		"ended":      {Dim, "○"},
+		"available":    {Green, "●"},
+		"allocated":    {yellow, "●"},
+		"offline":      {red, "●"},
+		"active":       {Green, "●"},
+		"idle":         {yellow, "●"},
+		"pending":      {Dim, "○"},
+		"allocating":   {Dim, "○"},
+		"provisioning": {Dim, "○"},
+		"ended":        {Dim, "○"},
 	}
 )
 

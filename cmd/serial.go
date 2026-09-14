@@ -43,7 +43,9 @@ func NewSerialCmd(c **client.Client, jsonFlag *bool) *cobra.Command {
 				}
 			}
 
-			if sess.State != "active" && sess.State != "idle" {
+			// provisioning is allowed: the base image write streams into this
+			// console, so attaching during it shows what the board is doing.
+			if sess.State != "active" && sess.State != "idle" && sess.State != "provisioning" {
 				return fmt.Errorf("session %s is %s, not active", sess.ID, sess.State)
 			}
 

@@ -256,7 +256,8 @@ func (c *Client) FindActiveSession() (*Session, error) {
 	}
 	for i := range page.Active {
 		s := &page.Active[i]
-		if s.State == "active" || s.State == "idle" || s.State == "pending" || s.State == "allocating" {
+		if s.State == "active" || s.State == "idle" || s.State == "pending" ||
+			s.State == "allocating" || s.State == "provisioning" {
 			return s, nil
 		}
 	}
