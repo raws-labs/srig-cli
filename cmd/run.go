@@ -180,7 +180,8 @@ func runOnSession(parent context.Context, c *client.Client, sess *client.Session
 		}
 		return runner.Outcome{}, fmt.Errorf("upload firmware: %w", err)
 	}
-	if err := waitFlashDone(flashCtx, ws, jsonFlag); err != nil {
+	early, err := waitFlashDone(flashCtx, ws, jsonFlag)
+	if err != nil {
 		if parent.Err() != nil {
 			return runner.Outcome{ExitCode: 130, Reason: "interrupted"}, nil
 		}
@@ -217,29 +218,7 @@ func runOnSession(parent context.Context, c *client.Client, sess *client.Session
 	}
 
 	var buf strings.Builder
-	for {
-		_, raw, err := ws.Read(watchCtx)
-		if err != nil {
-			if parent.Err() != nil {
-				return runner.Outcome{ExitCode: 130, Reason: "interrupted"}, nil
-			}
-			if watchCtx.Err() == context.DeadlineExceeded {
-				return eval.Timeout(), nil
-			}
-			return runner.Outcome{}, fmt.Errorf("connection lost: %w", err)
-		}
-		var msg map[string]any
-		if json.Unmarshal(raw, &msg) != nil {
-			continue
-		}
-		if t, _ := msg["type"].(string); t != "serial_data" {
-			continue
-		}
-		b64, _ := msg["data"].(string)
-		decoded, derr := base64.StdEncoding.DecodeString(b64)
-		if derr != nil {
-			continue
-		}
+	handle := func(decoded []byte) (runner.Outcome, bool) {
 		firstOnce.Do(func() { close(firstOutput) })
 		if jsonFlag {
 			os.Stderr.Write(decoded) // keep stdout pure JSON under --json
@@ -260,33 +239,87 @@ func runOnSession(parent context.Context, c *client.Client, sess *client.Session
 			buf.Reset()
 			buf.WriteString(s[nl+1:])
 			if o, done := eval.Feed(line); done {
+				return o, true
+			}
+		}
+		return runner.Outcome{}, false
+	}
+
+	for _, decoded := range early {
+		if o, done := handle(decoded); done {
+			return o, nil
+		}
+	}
+	for {
+		_, raw, err := ws.Read(watchCtx)
+		if err != nil {
+			if parent.Err() != nil {
+				return runner.Outcome{ExitCode: 130, Reason: "interrupted"}, nil
+			}
+			if watchCtx.Err() == context.DeadlineExceeded {
+				return eval.Timeout(), nil
+			}
+			return runner.Outcome{}, fmt.Errorf("connection lost: %w", err)
+		}
+		if decoded, ok := serialData(raw); ok {
+			if o, done := handle(decoded); done {
 				return o, nil
 			}
 		}
 	}
 }
 
-// waitFlashDone consumes flash_output/flash_done frames until the flash finishes.
-func waitFlashDone(ctx context.Context, ws wsReader, jsonFlag bool) error {
+// serialData returns the decoded payload of a serial_data frame.
+func serialData(raw []byte) ([]byte, bool) {
+	var msg map[string]any
+	if json.Unmarshal(raw, &msg) != nil {
+		return nil, false
+	}
+	if t, _ := msg["type"].(string); t != "serial_data" {
+		return nil, false
+	}
+	b64, _ := msg["data"].(string)
+	decoded, err := base64.StdEncoding.DecodeString(b64)
+	if err != nil {
+		return nil, false
+	}
+	return decoded, true
+}
+
+// waitFlashDone consumes frames until the flash finishes and returns the serial
+// output the new firmware produced before flash_done arrived. Output before the
+// flash's first flash_output line is the old firmware's and is dropped; the pod
+// sends nothing from the old firmware after that line.
+func waitFlashDone(ctx context.Context, ws wsReader, jsonFlag bool) ([][]byte, error) {
+	var early [][]byte
+	started := false
 	for {
 		_, raw, err := ws.Read(ctx)
 		if err != nil {
-			return fmt.Errorf("lost connection while flashing: %w", err)
+			return nil, fmt.Errorf("lost connection while flashing: %w", err)
+		}
+		if decoded, ok := serialData(raw); ok {
+			if started {
+				early = append(early, decoded)
+			}
+			continue
 		}
 		var msg map[string]any
 		if json.Unmarshal(raw, &msg) != nil {
 			continue
 		}
 		switch msg["type"] {
+		case "flash_output":
+			started = true
 		case "flash_done":
 			if ok, _ := msg["success"].(bool); ok {
 				if !jsonFlag {
 					output.Info("flash complete")
 				}
-				return nil
+				return early, nil
 			}
 			errMsg, _ := msg["error"].(string)
-			return fmt.Errorf("flash failed: %s", errMsg)
+			return nil, fmt.Errorf("flash failed: %s", errMsg)
 		}
 	}
 }
