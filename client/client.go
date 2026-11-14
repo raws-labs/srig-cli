@@ -186,8 +186,48 @@ func (c *Client) FlashFirmware(sessionID, filePath string) error {
 
 // FlashFirmwareBytes uploads in-memory firmware bytes to the given session.
 func (c *Client) FlashFirmwareBytes(sessionID, name string, data []byte) error {
+	return c.upload("/v1/sessions/"+sessionID+"/flash", nil, name, data, nil)
+}
+
+// CreateRunRecord uploads firmware and starts recording a run of it on a free
+// board of boardType. The record comes back in state recording.
+func (c *Client) CreateRunRecord(boardType, name, send string, runSeconds int, fileName string, data []byte) (*RunRecord, error) {
+	fields := map[string]string{"board_type": boardType}
+	if name != "" {
+		fields["name"] = name
+	}
+	if send != "" {
+		fields["send"] = send
+	}
+	if runSeconds > 0 {
+		fields["run_seconds"] = fmt.Sprint(runSeconds)
+	}
+	var rec RunRecord
+	if err := c.upload("/v1/run-records", fields, fileName, data, &rec); err != nil {
+		return nil, err
+	}
+	return &rec, nil
+}
+
+// GetRunRecord returns a run record by ID.
+func (c *Client) GetRunRecord(id string) (*RunRecord, error) {
+	var rec RunRecord
+	if err := c.do("GET", "/v1/run-records/"+id, nil, &rec); err != nil {
+		return nil, err
+	}
+	return &rec, nil
+}
+
+// upload posts a multipart form with the firmware as the "firmware" file and
+// decodes the JSON response into result when it is not nil.
+func (c *Client) upload(path string, fields map[string]string, name string, data []byte, result any) error {
 	var buf bytes.Buffer
 	w := multipart.NewWriter(&buf)
+	for k, v := range fields {
+		if err := w.WriteField(k, v); err != nil {
+			return fmt.Errorf("write form field: %w", err)
+		}
+	}
 	part, err := w.CreateFormFile("firmware", name)
 	if err != nil {
 		return fmt.Errorf("create form file: %w", err)
@@ -197,7 +237,7 @@ func (c *Client) FlashFirmwareBytes(sessionID, name string, data []byte) error {
 	}
 	w.Close()
 
-	req, err := http.NewRequest("POST", c.BaseURL+"/v1/sessions/"+sessionID+"/flash", &buf)
+	req, err := http.NewRequest("POST", c.BaseURL+path, &buf)
 	if err != nil {
 		return fmt.Errorf("create request: %w", err)
 	}
@@ -212,8 +252,8 @@ func (c *Client) FlashFirmwareBytes(sessionID, name string, data []byte) error {
 	}
 	defer resp.Body.Close()
 
+	raw, _ := io.ReadAll(resp.Body)
 	if resp.StatusCode >= 400 {
-		raw, _ := io.ReadAll(resp.Body)
 		var errResp struct {
 			Error string `json:"error"`
 		}
@@ -221,6 +261,11 @@ func (c *Client) FlashFirmwareBytes(sessionID, name string, data []byte) error {
 			return &APIError{StatusCode: resp.StatusCode, Message: errResp.Error}
 		}
 		return &APIError{StatusCode: resp.StatusCode, Message: string(raw)}
+	}
+	if result != nil {
+		if err := json.Unmarshal(raw, result); err != nil {
+			return fmt.Errorf("decode response: %w", err)
+		}
 	}
 	return nil
 }

@@ -38,3 +38,26 @@ type User struct {
 	CreatedAt      string `json:"created_at"`
 	LastActiveAt   string `json:"last_active_at"`
 }
+
+// RunRecord is a recorded run of firmware on a real board. State is recording
+// while the run is on the board, then ready or failed. URL and BadgeMarkdown
+// come with the response that created the record.
+type RunRecord struct {
+	ID                 string `json:"id"`
+	Name               string `json:"name"`
+	BoardType          string `json:"board_type"`
+	FirmwareSHA256     string `json:"firmware_sha256"`
+	FirmwareBytes      int    `json:"firmware_bytes"`
+	Send               string `json:"send"`
+	RunSeconds         int    `json:"run_seconds"`
+	State              string `json:"state"`
+	Error              string `json:"error,omitempty"`
+	Truncated          bool   `json:"truncated"`
+	BoardLabel         string `json:"board_label,omitempty"`
+	PodVersion         string `json:"pod_version,omitempty"`
+	CoordinatorVersion string `json:"coordinator_version,omitempty"`
+	RecordedAt         string `json:"recorded_at,omitempty"`
+	CreatedAt          string `json:"created_at"`
+	URL                string `json:"url,omitempty"`
+	BadgeMarkdown      string `json:"badge_markdown,omitempty"`
+}
