@@ -40,16 +40,17 @@ CI integration.
 ## Commands
 
 ```
-srig status                        Show board availability
-srig session create --board TYPE   Start a session
-srig session list                  List your sessions
-srig session end [ID]              End a session (auto-detects active)
-srig flash <firmware>              Flash firmware to the board
-srig run <firmware> --board TYPE   Flash, watch serial, and assert (one-shot, CI-ready exit code)
-srig serial                        Open serial terminal (Ctrl+] to exit)
-srig power-cycle                   Power cycle the board
-srig whoami                        Show your account info
-srig version                       Print CLI version
+srig status                           Show board availability
+srig session create --board TYPE      Start a session
+srig session list                     List your sessions
+srig session end [ID]                 End a session (auto-detects active)
+srig flash <firmware>                 Flash firmware to the board
+srig run <firmware> --board TYPE      Flash, watch serial, and assert (one-shot, CI-ready exit code)
+srig record <firmware> --board TYPE   Record a run and get a shareable link and badge
+srig serial                           Open serial terminal (Ctrl+] to exit)
+srig power-cycle                      Power cycle the board
+srig whoami                           Show your account info
+srig version                          Print CLI version
 ```
 
 `srig flash` accepts a raw `.bin` (all boards), a `.uf2` (rp2350), or, for
@@ -73,6 +74,22 @@ failed/timeout, `2` infrastructure error, `130` interrupted. Use `--retries`
 / `--retry-delay` to ride out transient infra failures (e.g. no free board).
 Test failures are never retried. See `srig run --help` for all flags
 (`--send`, `--log`, `--json`, etc.).
+
+### `srig record`
+
+Run firmware on a free board, record the flash, the boot and everything the
+board prints, and publish the recording as a run record. It prints a link
+anyone can open to play the run back, plus a "Run on SiliconRig" badge for a
+README:
+
+```bash
+srig record bench.elf --board stm32-h753 --name "Inference benchmark" --seconds 30
+```
+
+The page shows what the run ran on: the firmware hash, the board, and the
+platform versions. `--send` is written to the board once it has booted and
+gone quiet. The run is a session of yours and uses credits like one. Exit
+codes: `0` recorded, `1` the recording failed, `2` infrastructure error.
 
 ## Flags
 

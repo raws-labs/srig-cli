@@ -55,6 +55,7 @@ func init() {
 	rootCmd.AddCommand(cmd.NewSessionCmd(&c, &flagJSON, &flagBaseURL))
 	rootCmd.AddCommand(cmd.NewFlashCmd(&c, &flagJSON))
 	rootCmd.AddCommand(cmd.NewRunCmd(&c, &flagJSON))
+	rootCmd.AddCommand(cmd.NewRecordCmd(&c, &flagJSON))
 	rootCmd.AddCommand(cmd.NewSerialCmd(&c, &flagJSON))
 	rootCmd.AddCommand(cmd.NewPowerCycleCmd(&c, &flagJSON))
 	rootCmd.AddCommand(cmd.NewWhoamiCmd(&c, &flagJSON))
